@@ -1,0 +1,63 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP 2N7002P
+D Transistor N-MOSFET (general)
+K nmos n-mos n-mosfet transistor
+$ENDCMP
+#
+$CMP AP2210
+D Fixed/Adjustable 1A Low Dropout regulator, Positive
+K REGULATOR LDO 1.5V 1.8V 2.5V 3.3V 5V
+F http://www.diodes.com/datasheets/AP1117.pdf
+$ENDCMP
+#
+$CMP ATTINY24A-SS
+D SO14, 2k Flash, 128B SRAM, 128B EEPROM, dW
+K AVR 8bit Microcontroller tinyAVR
+F http://www.atmel.com/Images/doc8183.pdf
+$ENDCMP
+#
+$CMP ATTINY44A-SS
+D SO14, 4k Flash, 256B SRAM, 256B EEPROM, dW
+K AVR 8bit Microcontroller tinyAVR
+F http://www.atmel.com/Images/doc8183.pdf
+$ENDCMP
+#
+$CMP ATTINY84A-SS
+D SO14, 8k Flash, 512B SRAM, 512B EEPROM, dW
+K AVR 8bit Microcontroller tinyAVR
+F http://www.atmel.com/Images/doc8183.pdf
+$ENDCMP
+#
+$CMP AZ1117
+D Fixed/Adjustable 1A Low Dropout regulator, Positive
+K REGULATOR LDO 1.5V 1.8V 2.5V 3.3V 5V
+F http://www.diodes.com/datasheets/AP1117.pdf
+$ENDCMP
+#
+$CMP CUS15S30
+D Diode schottky
+$ENDCMP
+#
+$CMP IRLML2402
+D Transistor N-MOSFET (general)
+K nmos n-mos n-mosfet transistor
+$ENDCMP
+#
+$CMP LEDS
+D Connector 01x04
+$ENDCMP
+#
+$CMP PMEG2020EJ
+D Diode schottky
+$ENDCMP
+#
+$CMP PWR
+D Connector 01x02
+$ENDCMP
+#
+$CMP RFMODULE
+D Connector 02x04
+$ENDCMP
+#
+#End Doc Library
