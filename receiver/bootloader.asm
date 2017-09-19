@@ -24,9 +24,9 @@
   r10, 
   r11,
   r12, 
-  r13, 
-  r14, 
-  r15, 
+  r13, init 
+  r14, init
+  r15, init
   r16, mainloop, spi_op, init
   r17,
   r18, mainloop
@@ -114,6 +114,20 @@
 .equ DYNPD =       0x1C
 .equ FEATURE =     0x1D
 
+.equ CONFIG_INIT_POFF = 0b00001001
+.equ CONFIG_INIT_PON =  0b00001011
+.equ EN_AA_INIT =       0b00111111
+.equ SETUP_AW_INIT =    0b00000001
+.equ SETUP_RETR_INIT =  0b00010011
+.equ RF_SETUP_INIT =    0b00001111
+.equ STATUS_INIT =      0b01110000
+.equ RX_ADDR_P0_INIT =  0xE7
+.equ RX_ADDR_P1_INIT =  0xC2
+.equ RX_ADDR_P2_INIT =  0xC3
+.equ RX_ADDR_P3_INIT =  0xC4
+.equ RX_ADDR_P4_INIT =  0xC5
+.equ RX_ADDR_P5_INIT =  0xC6
+.equ FEATURE_INIT =     0b00000110
 
 
 
@@ -236,15 +250,18 @@ ERROR:                  cbi PORTA,LEDB1
                         cbi PORTA,LEDG2
                         sbi PORTB,LEDR1
                         sbi PORTB,LEDR2
-                        ret
+                        cli
+                        sleep
+                        rjmp ERROR
 
 
 .ORG 0x600
-/* After reset initialze stack, pointers (XYZ), IO, interrupts and timer0
-   Mangels r16, r23 and pointers X, Y and Z
-   
-   Starts timer0 to drive the PWM routine*/
-RESET_H:
+/* After reset initialze stack, pointers (XYZ), IO, interrupts and rf-module
+*/
+
+
+//Setup MCU
+RESET_H:                
 			ldi r16, HIGH(stack)
 			out SPH, r16
 			ldi r16, LOW(stack)
@@ -288,6 +305,44 @@ initeeprom:             sbic EECR, EEPE
 			ldi r16, (1<<IRQ_PCINT)
 			out IRQ_PCMSKREG, r16
 
+//read rf-parameters stored on the eeprom
+			ldi r16,2
+eereadloop:		out EEARL,r16
+			sbi EECR,EERE
+			in r23,EEDR
+			push r23
+			dec r16
+			brpl eereadloop
+                        pop r13
+                        pop r14
+                        pop r15
+//Setup RF-module
+//Try to detect nrf24L01+ by reading TX_ADDR and checking for the default
+			ldi r30, bufferc
+			ldi r16, R_REGISTER + TX_ADDR
+			st -Z,r16
+			ldi r16,5
+			rcall spi_op
+
+			ldi r28, bufferc
+			ldi r23,5
+funkcheckloop:		ld r16,Y+
+			cpi r16,0xE7
+			brne funkfail
+			dec r23
+			brne funkcheckloop
+                        rjmp funkok
+funkfail:               rjmp ERROR
+funkok:
+
+			ldi r30, bufferc
+			ldi r16, CONFIG_INIT_POFF	;set rf-module to power-on and RX mode
+			st Z,r16
+			ldi r16, W_REGISTER + CONFIG
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
                         ldi r30, bufferc
                         ldi r16, FLUSH_TX
                         st  -Z,r16
@@ -301,97 +356,111 @@ initeeprom:             sbic EECR, EEPE
                         rcall spi_op
 
                         ldi r30, bufferc
-			ldi r16, 0b01110000	;IRQs to clear
+			ldi r16, STATUS_INIT            //clear IRQs
 			st Z,r16
 			ldi r16, W_REGISTER + STATUS
 			st -Z,r16
 			ldi r16,1
 			rcall spi_op
 
-			ldi r30, bufferc-1
-			ldi r16, R_REGISTER + RX_ADDR_P0
-			st Z,r16
-			ldi r16,5
-			rcall spi_op
-
-                        cbi PORTA,LEDB1
-                        cbi PORTA,LEDB2
-                        cbi PORTA,LEDG1
-                        cbi PORTA,LEDG2
-                        cbi PORTB,LEDR1
-                        cbi PORTB,LEDR2
-			ldi r28, bufferc-1
-			ld r16,Y+
-			cpi r16,0b00001110
-			brne funkfail
-                        sbi PORTA,LEDG1
-			ldi r23,5
-funkcheckloop:		ld r16,Y+
-			cpi r16,0xE7
-			brne funkunclean
-			dec r23
-			brne funkcheckloop
-                        sbi PORTA,LEDG2
-                        rjmp funkok
-funkfail:		sbi PORTB,LEDR1
-funkunclean:            sbi PORTB,LEDR2
-funkok:
-
 			ldi r30,bufferc
-                        ldi r16,0b00111111
+                        ldi r16,EN_AA_INIT
                         st  Z,r16
-			ldi r16,W_REGISTER + EN_RXADDR   ;enable all rf pipes
+			ldi r16,W_REGISTER + EN_AA
 			st -Z,r16
 			ldi r16,1
 			rcall spi_op
 
 			ldi r30,bufferc
-                        ldi r16,1
+                        ldi r16,SETUP_AW_INIT
                         st  Z,r16
-			ldi r16,W_REGISTER + SETUP_AW   ;set rf address width to 3 bytes
+			ldi r16,W_REGISTER + SETUP_AW
 			st -Z,r16
 			ldi r16,1
 			rcall spi_op
 
+			ldi r30,bufferc
+                        ldi r16,SETUP_RETR_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + SETUP_RETR
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
 
-			ldi r16,2
-eereadloop:		out EEARL,r16		;read rf-parameters stored on the eeprom
-			sbi EECR,EERE
-			in r23,EEDR
-			push r23
-			dec r16
-			brpl eereadloop
+			ldi r30,bufferc
+                        ldi r16,RF_SETUP_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + RF_SETUP
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,FEATURE_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + FEATURE
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
 
                         ldi r30,bufferc
-                        pop r16
-                        st Z,r16
-			ldi r16,W_REGISTER + RF_CH	;write channel number to rf
+                        st Z,r13
+			ldi r16,W_REGISTER + RF_CH
 			st -Z,r16
 			ldi r16,1
 			rcall spi_op
 
-                        pop r18
-                        pop r17
-                        ldi r16,0xE7
+                        ldi r16,RX_ADDR_P0_INIT
                         ldi r30,bufferc+2
-                        st  Z,r18
-                        st  -Z,r17
+                        st  Z,r14
+                        st  -Z,r15
                         st  -Z,r16
 			ldi r16,W_REGISTER + RX_ADDR_P0	;write control pipe address to rf
 			st -Z,r16
 			ldi r16,3
 			rcall spi_op
 
-                        ldi r16,0xC2
+                        ldi r16,RX_ADDR_P1_INIT
                         ldi r30,bufferc+2
-                        st  Z,r18
-                        st  -Z,r17
+                        st  Z,r14
+                        st  -Z,r15
                         st  -Z,r16
 			ldi r16,W_REGISTER + RX_ADDR_P1	;write pipe1 address to rf
 			st -Z,r16
 			ldi r16,3
 			rcall spi_op
 
+			ldi r30,bufferc
+                        ldi r16,RX_ADDR_P2_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + RX_ADDR_P2
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,RX_ADDR_P3_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + RX_ADDR_P3
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,RX_ADDR_P4_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + RX_ADDR_P4
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,RX_ADDR_P5_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + RX_ADDR_P5
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
 
                         ldi r30, bufferc
 			ldi r16,32		        ;set control pipe length
@@ -446,13 +515,30 @@ eereadloop:		out EEARL,r16		;read rf-parameters stored on the eeprom
 			ldi r16,1
 			rcall spi_op
 
+			ldi r30,bufferc
+                        ldi r16,0b00111111
+                        st  Z,r16
+			ldi r16,W_REGISTER + EN_RXADDR   ;enable all rf pipes
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,0b00000000
+                        st  Z,r16
+			ldi r16,W_REGISTER + DYNPD
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
 			ldi r30, bufferc
-			ldi r16, 0b00001011	;set rf-module to power-on and RX mode
+			ldi r16, CONFIG_INIT_PON	;set rf-module to power-on and RX mode
 			st Z,r16
 			ldi r16, W_REGISTER + CONFIG
 			st -Z,r16
 			ldi r16,1
 			rcall spi_op
+
 
                         rcall SETUP_VECT
 
@@ -506,6 +592,9 @@ clear_irq:              ldi r30, bufferc
 
                         rjmp rf_op
 
+//To work around a bug in counterfeit nrf24L01+ chips
+//a running number is included to the end of each payload
+//thus reducing the effective payload size by one.
 control_command:           
                         ldi r30, bufferc-1
 			ldi r16,R_RX_PAYLOAD  ;read packet
