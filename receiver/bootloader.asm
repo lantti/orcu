@@ -28,7 +28,7 @@
   r14, init
   r15, init
   r16, mainloop, spi_op, init
-  r17,
+  r17, mainloop
   r18, mainloop
   r19, mainloop, spi_op
   r20, mainloop, spi_op
@@ -121,13 +121,13 @@
 .equ SETUP_RETR_INIT =  0b00010011
 .equ RF_SETUP_INIT =    0b00001111
 .equ STATUS_INIT =      0b01110000
-.equ RX_ADDR_P0_INIT =  0xE7
-.equ RX_ADDR_P1_INIT =  0xC2
+.equ RX_ADDR_P0_INIT =  0xE7           //Additional 2 bytes from eeprom
+.equ RX_ADDR_P1_INIT =  0xC2           //Additional 2 bytes from eeprom
 .equ RX_ADDR_P2_INIT =  0xC3
 .equ RX_ADDR_P3_INIT =  0xC4
 .equ RX_ADDR_P4_INIT =  0xC5
 .equ RX_ADDR_P5_INIT =  0xC6
-.equ FEATURE_INIT =     0b00000110
+.equ FEATURE_INIT =     0b00000111
 
 
 
@@ -243,6 +243,29 @@ PING:                   sbi PORTA,LEDB1
                         sbi PORTA,LEDG2
                         sbi PORTB,LEDR1
                         sbi PORTB,LEDR2
+                        ldi r31,0x00
+                        ldi r30,bufferc-1
+                        ldi r16,0x78
+                        st  Z+,r16
+                        st  Z+,r16
+                        st  Z+,r16
+                        ldi r16,0xAA
+                        st  Z+,r16
+                        st  Z+,r16
+                        st  Z+,r16
+                        ldi r16,0xBB
+                        st  Z+,r16
+                        st  Z+,r16
+                        st  Z+,r16
+                        ldi r16,0xCC
+                        st  Z+,r16
+                        st  Z+,r16
+                        st  Z+,r16
+                        ldi r16,0xDD
+                        st  Z+,r16
+                        st  Z+,r16
+                        st  Z+,r16
+                        st  Z+,r16
                         ret
 ERROR:                  cbi PORTA,LEDB1
                         cbi PORTA,LEDB2
@@ -336,7 +359,7 @@ funkfail:               rjmp ERROR
 funkok:
 
 			ldi r30, bufferc
-			ldi r16, CONFIG_INIT_POFF	;set rf-module to power-on and RX mode
+			ldi r16, CONFIG_INIT_POFF	;set rf-module to power-off and RX mode
 			st Z,r16
 			ldi r16, W_REGISTER + CONFIG
 			st -Z,r16
@@ -419,6 +442,12 @@ funkok:
 			st -Z,r16
 			ldi r16,3
 			rcall spi_op
+
+                        ldi r16,TX_ADDR
+                        ldi r30,bufferc
+                        st -Z,r16
+                        ldi r16,3
+                        rcall spi_op
 
                         ldi r16,RX_ADDR_P1_INIT
                         ldi r30,bufferc+2
@@ -524,7 +553,7 @@ funkok:
 			rcall spi_op
 
 			ldi r30,bufferc
-                        ldi r16,0b00000000
+                        ldi r16,0b00000001
                         st  Z,r16
 			ldi r16,W_REGISTER + DYNPD
 			st -Z,r16
@@ -546,7 +575,7 @@ funkok:
 
 /*Main loop
   Waits for interrupt, checks if there is a new packet to read,
-  if yes, reads the packet, sets new values to the PWM routine and
+  if yes, reads the packet, calls an appropriate handler and
   returns to wait
   Mangels: Z,r16,r18,r19,r20,r21
 */
@@ -556,31 +585,69 @@ FOREVER:	        sleep
 
 rf_op:                  ldi r31,0x00
                         ldi r30, bufferc
-                        ldi r16, RF_NOP  ;read status to get the current pipe number
+                        ldi r16, R_RX_PL_WID  ;read PL width and status to get the current pipe number
                         st  -Z,r16
-                        clr r16
-                        rcall spi_op   ;leaves the last byte read on r19, no need to ld from mem
-
-                        andi r19, 0b00001110
-                        breq control_command
-                        cpi r19,0x0E
-                        breq FOREVER
+                        ldi r16,1
+                        rcall spi_op
                         
-                        lsr r19
-                        mov r18,r19           ;pipe number of the current pipe
-                        ldi r30,(PW_TABLE<<1)-1
-                        add r30,r18
-                        lpm r16,Z             ;get the width of the current pipe
+                        ldi r30,bufferc-1
+                        ld r17,Z+
+                        ld r18,Z
 
-                        ldi r30, bufferc
-			ldi r19,R_RX_PAYLOAD  ;read packet
+                        mov r16,r17
+                        andi r17,0b00001110
+                        breq dynamic_pl       ;control pipe has always dynamic width
+                        cpi r17,0x0C
+                        brlo get_pipe_width
+                        andi r16,0b01110000   ;nothing to read so cleanup or go back to wait
+                        breq FOREVER
+                        rjmp clear_irq
+                        
+get_pipe_width:         lsr r17               ;pipe number of the current pipe
+                        ldi r30,(PW_TABLE<<1)-1
+                        add r30,r17
+                        lpm r16,Z             ;get the width spec of the current pipe
+
+
+                        cpi r16,0xFF
+                        brne read_packet
+dynamic_pl:             cpi r18,33
+                        brsh rx_flush
+                        mov r16,r18           ;dynamic payload width
+
+read_packet:            ldi r30, bufferc
+			ldi r19,R_RX_PAYLOAD
 			st  -Z,r19
 			rcall spi_op
 
                         ldi r31,0x00
+                        ldi r30,bufferc-1
+                        ldi r16,0xFF
+                        st Z,r16
+
+                        cpi r17,0x00
+                        breq control_handler
+
                         ldi r30,PIPE_CB_VECT-1
-                        add r30,r18
+                        add r30,r17
                         icall
+
+end_handler:            ldi r31,0x00
+                        ldi r30,bufferc-1
+                        ld  r16,Z
+                        mov r17,r16
+                        lsr r16
+                        lsr r16
+                        lsr r16
+                        inc r16
+                        andi r17,0x07
+
+                        cpi r17,0x06
+                        brsh clear_irq
+                        ldi r18,W_ACK_PAYLOAD
+                        add r18,r17
+                        st Z,r18
+                        rcall spi_op
 
 clear_irq:              ldi r30, bufferc
 			ldi r16, 0b01110000	;IRQs to clear
@@ -589,19 +656,24 @@ clear_irq:              ldi r30, bufferc
 			st -Z,r16
 			ldi r16,1
 			rcall spi_op
-
                         rjmp rf_op
+
+tx_rx_flush:            ldi r30, bufferc
+                        ldi r16, FLUSH_TX
+                        st  -Z,r16
+                        ldi r16,0
+                        rcall spi_op
+rx_flush:               ldi r30, bufferc
+                        ldi r16, FLUSH_RX
+                        st  -Z,r16
+                        ldi r16,0
+                        rcall spi_op
+                        rjmp clear_irq
 
 //To work around a bug in counterfeit nrf24L01+ chips
 //a running number is included to the end of each payload
 //thus reducing the effective payload size by one.
-control_command:           
-                        ldi r30, bufferc-1
-			ldi r16,R_RX_PAYLOAD  ;read packet
-			st  Z,r16
-			ldi r16,32              ;pipe width
-                        rcall spi_op
-
+control_handler:           
                         ldi r31,0x00
                         ldi r30,bufferc
                         ld  r16,Z+
@@ -618,6 +690,8 @@ control_command:
                         breq program_eeprom_lj
                         cpi r16, 0x05
                         breq force_reset
+                        cpi r16, 0x06
+                        breq tx_rx_flush
                         cpi r16, 0xFF
                         breq clear_irq
                         rjmp clear_irq
@@ -626,7 +700,8 @@ control_command:
 program_eeprom_lj:      rjmp program_eeprom
 
 reply_ping:             rcall PING
-                        rjmp clear_irq
+                        rjmp end_handler
+
 
 force_reset:
                         cli
@@ -662,7 +737,7 @@ page_load_loop:         lpm r18, Z
                         dec r16
                         brne page_load_loop
                         ldi r31,0x00
-                        rjmp clear_irq
+                        rjmp end_handler
 
 
 write_buffer:
@@ -683,7 +758,7 @@ buffer_write_loop:      ld  r16,Z+
                         mov r30,r20
                         cp  r19,r18
                         brcc buffer_write_loop
-                        rjmp clear_irq
+                        rjmp end_handler
 
 
 program_page:
@@ -731,7 +806,7 @@ f_ready_wait:           in  r18,SPMCSR
                         pop  r29
                         pop  r28
                         sei
-                        rjmp clear_irq
+                        rjmp end_handler
 
 ;UNTESTESTED!!!
 program_eeprom:
@@ -750,7 +825,7 @@ eewrite_loop:           sbic EECR, EEPE
                         brpl eewrite_loop
 ee_wait:                sbic EECR, EEPE
                         rjmp ee_wait
-                        rjmp clear_irq
+                        rjmp end_handler
 
 /*SPI operations subroutine
   Requires a pointer to the SPI transfer buffer in pointer Z and
