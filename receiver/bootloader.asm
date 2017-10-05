@@ -24,23 +24,23 @@
   r10, 
   r11,
   r12, 
-  r13, init 
-  r14, init
-  r15, init
+  r13,
+  r14,
+  r15, spi_op
   r16, mainloop, spi_op, init
-  r17, mainloop
-  r18, mainloop
-  r19, mainloop, spi_op
-  r20, mainloop, spi_op
-  r21, mainloop, spi_op
+  r17, mainloop, init
+  r18, mainloop, init
+  r19, mainloop, init
+  r20, mainloop, spi_op, init
+  r21, mainloop, spi_op, init
   r22,
   r23,
   r24, 
   r25, 
-  r26 (Xl), init
-  r27 (Xh), init
-  r28 (Yl), init
-  r29 (Yh), init
+  r26 (Xl),
+  r27 (Xh),
+  r28 (Yl),
+  r29 (Yh),
   r30 (Zl), init, mainloop, spi_op
   r31 (Zh), init, mainloop, spi_op
 */
@@ -163,7 +163,7 @@ userspace:      .BYTE 1
 			rjmp   USI_OVF_H        ; USI Overflow Handler
 
                         ;RF recieve pipe widths
-PW_TABLE:               .DB 16,8,32,2,1
+PW_TABLE:               .DB 16,8,32,0,255
 
                         ;standard function vectors
 SETUP_VECT:             rjmp   SETUP
@@ -328,18 +328,6 @@ initeeprom:             sbic EECR, EEPE
 			ldi r16, (1<<IRQ_PCINT)
 			out IRQ_PCMSKREG, r16
 
-//read rf-parameters stored on the eeprom
-			ldi r16,2
-eereadloop:		out EEARL,r16
-			sbi EECR,EERE
-			in r23,EEDR
-			push r23
-			dec r16
-			brpl eereadloop
-                        pop r13
-                        pop r14
-                        pop r15
-//Setup RF-module
 //Try to detect nrf24L01+ by reading TX_ADDR and checking for the default
 			ldi r30, bufferc
 			ldi r16, R_REGISTER + TX_ADDR
@@ -358,216 +346,8 @@ funkcheckloop:		ld r16,Y+
 funkfail:               rjmp ERROR
 funkok:
 
-			ldi r30, bufferc
-			ldi r16, CONFIG_INIT_POFF	;set rf-module to power-off and RX mode
-			st Z,r16
-			ldi r16, W_REGISTER + CONFIG
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
 
-                        ldi r30, bufferc
-                        ldi r16, FLUSH_TX
-                        st  -Z,r16
-                        ldi r16,0
-                        rcall spi_op
-
-                        ldi r30, bufferc
-                        ldi r16, FLUSH_RX
-                        st  -Z,r16
-                        ldi r16,0
-                        rcall spi_op
-
-                        ldi r30, bufferc
-			ldi r16, STATUS_INIT            //clear IRQs
-			st Z,r16
-			ldi r16, W_REGISTER + STATUS
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,EN_AA_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + EN_AA
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,SETUP_AW_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + SETUP_AW
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,SETUP_RETR_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + SETUP_RETR
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,RF_SETUP_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + RF_SETUP
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,FEATURE_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + FEATURE
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r30,bufferc
-                        st Z,r13
-			ldi r16,W_REGISTER + RF_CH
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r16,RX_ADDR_P0_INIT
-                        ldi r30,bufferc+2
-                        st  Z,r14
-                        st  -Z,r15
-                        st  -Z,r16
-			ldi r16,W_REGISTER + RX_ADDR_P0	;write control pipe address to rf
-			st -Z,r16
-			ldi r16,3
-			rcall spi_op
-
-                        ldi r16,TX_ADDR
-                        ldi r30,bufferc
-                        st -Z,r16
-                        ldi r16,3
-                        rcall spi_op
-
-                        ldi r16,RX_ADDR_P1_INIT
-                        ldi r30,bufferc+2
-                        st  Z,r14
-                        st  -Z,r15
-                        st  -Z,r16
-			ldi r16,W_REGISTER + RX_ADDR_P1	;write pipe1 address to rf
-			st -Z,r16
-			ldi r16,3
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,RX_ADDR_P2_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + RX_ADDR_P2
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,RX_ADDR_P3_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + RX_ADDR_P3
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,RX_ADDR_P4_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + RX_ADDR_P4
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,RX_ADDR_P5_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + RX_ADDR_P5
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r30, bufferc
-			ldi r16,32		        ;set control pipe length
-			st Z,r16
-			ldi r16, W_REGISTER + RX_PW_P0
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r30,PW_TABLE<<1
-                        lpm r16,Z
-                        ldi r30,bufferc
-                        st Z,r16
-			ldi r16,W_REGISTER + RX_PW_P1	;set pipe1 length
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r30,(PW_TABLE<<1)+1
-                        lpm r16,Z
-                        ldi r30,bufferc
-                        st Z,r16
-			ldi r16,W_REGISTER + RX_PW_P2	;set pipe2 length
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r30,(PW_TABLE<<1)+2
-                        lpm r16,Z
-                        ldi r30,bufferc
-                        st Z,r16
-			ldi r16,W_REGISTER + RX_PW_P3	;set pipe3 length
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r30,(PW_TABLE<<1)+3
-                        lpm r16,Z
-                        ldi r30,bufferc
-                        st Z,r16
-			ldi r16,W_REGISTER + RX_PW_P4	;set pipe4 length
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r30,(PW_TABLE<<1)+4
-                        lpm r16,Z
-                        ldi r30,bufferc
-                        st Z,r16
-			ldi r16,W_REGISTER + RX_PW_P5	;set pipe5 length
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,0b00111111
-                        st  Z,r16
-			ldi r16,W_REGISTER + EN_RXADDR   ;enable all rf pipes
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,0b00000001
-                        st  Z,r16
-			ldi r16,W_REGISTER + DYNPD
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30, bufferc
-			ldi r16, CONFIG_INIT_PON	;set rf-module to power-on and RX mode
-			st Z,r16
-			ldi r16, W_REGISTER + CONFIG
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
+                        rcall init_rf
 
                         rcall SETUP_VECT
 
@@ -658,11 +438,6 @@ clear_irq:              ldi r30, bufferc
 			rcall spi_op
                         rjmp rf_op
 
-tx_rx_flush:            ldi r30, bufferc
-                        ldi r16, FLUSH_TX
-                        st  -Z,r16
-                        ldi r16,0
-                        rcall spi_op
 rx_flush:               ldi r30, bufferc
                         ldi r16, FLUSH_RX
                         st  -Z,r16
@@ -691,13 +466,16 @@ control_handler:
                         cpi r16, 0x05
                         breq force_reset
                         cpi r16, 0x06
-                        breq tx_rx_flush
+                        breq init_rf_cmd
                         cpi r16, 0xFF
                         breq clear_irq
                         rjmp clear_irq
 
 
 program_eeprom_lj:      rjmp program_eeprom
+
+init_rf_cmd:            rcall init_rf
+                        rjmp end_handler
 
 reply_ping:             rcall PING
                         rjmp end_handler
@@ -827,19 +605,285 @@ ee_wait:                sbic EECR, EEPE
                         rjmp ee_wait
                         rjmp end_handler
 
+
+/*Initialize RF module subroutine
+  Requires: None
+  Returns: None
+  Mangles: Z, r15, r16, r17, r18, r19, r20, r21*/
+init_rf:	
+//read rf-parameters stored on the eeprom
+			ldi r16,2
+eereadloop:		out EEARL,r16
+			sbi EECR,EERE
+			in r19,EEDR
+			push r19
+			dec r16
+			brpl eereadloop
+                        pop r17
+                        pop r18
+                        pop r19
+                        push r19
+                        push r18
+//Setup RF-module
+                        ldi r31, 0x00
+                        ldi r30, bufferc
+			ldi r16, CONFIG_INIT_POFF	;set rf-module to power-off and RX mode
+			st Z,r16
+			ldi r16, W_REGISTER + CONFIG
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+                        ldi r30, bufferc
+                        ldi r16, FLUSH_TX
+                        st  -Z,r16
+                        ldi r16,0
+                        rcall spi_op
+
+                        ldi r30, bufferc
+                        ldi r16, FLUSH_RX
+                        st  -Z,r16
+                        ldi r16,0
+                        rcall spi_op
+
+                        ldi r30, bufferc
+			ldi r16, STATUS_INIT            //clear IRQs
+			st Z,r16
+			ldi r16, W_REGISTER + STATUS
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,EN_AA_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + EN_AA
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,SETUP_AW_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + SETUP_AW
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,SETUP_RETR_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + SETUP_RETR
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,RF_SETUP_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + RF_SETUP
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,FEATURE_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + FEATURE
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+                        ldi r30,bufferc
+                        st Z,r17
+			ldi r16,W_REGISTER + RF_CH
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+                        ldi r30,bufferc+2
+                        st  Z,r18
+                        st  -Z,r19
+                        ldi r16,RX_ADDR_P0_INIT
+                        st  -Z,r16
+			ldi r16,W_REGISTER + RX_ADDR_P0	;write control pipe address to rf
+			st -Z,r16
+			ldi r16,3
+			rcall spi_op
+
+                        ldi r30,bufferc
+                        st  Z,r18
+                        st  -Z,r19
+                        ldi r16,RX_ADDR_P1_INIT
+                        st  -Z,r16
+			ldi r16,W_REGISTER + RX_ADDR_P1	;write pipe1 address to rf
+			st -Z,r16
+			ldi r16,3
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,RX_ADDR_P2_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + RX_ADDR_P2
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,RX_ADDR_P3_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + RX_ADDR_P3
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,RX_ADDR_P4_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + RX_ADDR_P4
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        ldi r16,RX_ADDR_P5_INIT
+                        st  Z,r16
+			ldi r16,W_REGISTER + RX_ADDR_P5
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+                        ldi r17, 0x01          ;enabled pipes (control pipe always enabled)
+                        ldi r18, 0x01          ;dynamic payload pipes (control pipe always dynamic)
+
+                        ldi r30, bufferc
+			ldi r16,32		        ;set control pipe width non-zero to activate
+			st Z,r16
+			ldi r16, W_REGISTER + RX_PW_P0
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+                        ldi r30,PW_TABLE<<1
+                        lpm r16,Z
+                        cpi r16,0
+                        breq pipe1_pw
+                        cpi r16,33
+                        brlo pipe1_en
+                        ori r18,0b00000010              ;dynamic payload
+                        ldi r16,32                      ;set pipe width non-zero to activate
+pipe1_en:               ori r17,0b00000010
+pipe1_pw:               ldi r30,bufferc
+                        st Z,r16
+			ldi r16,W_REGISTER + RX_PW_P1	;set pipe1 width
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+                        ldi r30,(PW_TABLE<<1)+1
+                        lpm r16,Z
+                        cpi r16,0
+                        breq pipe2_pw
+                        cpi r16,33
+                        brlo pipe2_en
+                        ori r18,0b00000100              ;dynamic payload
+                        ldi r16,32                      ;set pipe width non-zero to activate
+pipe2_en:               ori r17,0b00000100
+pipe2_pw:               ldi r30,bufferc
+                        st Z,r16
+			ldi r16,W_REGISTER + RX_PW_P2	;set pipe2 width
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+                        ldi r30,(PW_TABLE<<1)+2
+                        lpm r16,Z
+                        cpi r16,0
+                        breq pipe3_pw
+                        cpi r16,33
+                        brlo pipe3_en
+                        ori r18,0b00001000              ;dynamic payload
+                        ldi r16,32                      ;set pipe width non-zero to activate
+pipe3_en:               ori r17,0b00001000
+pipe3_pw:               ldi r30,bufferc
+                        st Z,r16
+			ldi r16,W_REGISTER + RX_PW_P3	;set pipe3 width
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+                        ldi r30,(PW_TABLE<<1)+3
+                        lpm r16,Z
+                        cpi r16,0
+                        breq pipe4_pw
+                        cpi r16,33
+                        brlo pipe4_en
+                        ori r18,0b00010000              ;dynamic payload
+                        ldi r16,32                      ;set pipe width non-zero to activate
+pipe4_en:               ori r17,0b00010000
+pipe4_pw:               ldi r30,bufferc
+                        st Z,r16
+			ldi r16,W_REGISTER + RX_PW_P4	;set pipe4 width
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+                        ldi r30,(PW_TABLE<<1)+4
+                        lpm r16,Z
+                        cpi r16,0
+                        breq pipe5_pw
+                        cpi r16,33
+                        brlo pipe5_en
+                        ori r18,0b00100000              ;dynamic payload
+                        ldi r16,32                      ;set pipe width non-zero to activate
+pipe5_en:               ori r17,0b00100000
+pipe5_pw:               ldi r30,bufferc
+                        st Z,r16
+			ldi r16,W_REGISTER + RX_PW_P5	;set pipe5 width
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        st  Z,r17
+			ldi r16,W_REGISTER + EN_RXADDR  ;enable all needed rf pipes
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30,bufferc
+                        st  Z,r18
+			ldi r16,W_REGISTER + DYNPD      ;set dynamic pipe information
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+			ldi r30, bufferc
+			ldi r16, CONFIG_INIT_PON	;set rf-module to power-on and RX mode
+			st Z,r16
+			ldi r16, W_REGISTER + CONFIG
+			st -Z,r16
+			ldi r16,1
+			rcall spi_op
+
+                        pop r18
+                        pop r19
+                        ret
+
+
 /*SPI operations subroutine
   Requires a pointer to the SPI transfer buffer in pointer Z and
   transfer length - 1 in r16
   Returns: SPI operation response in the transfer buffer
-  Mangles: Z, r16, r19, r20, r21*/
+  Mangles: Z, r16, r15, r20, r21*/
 spi_op:
 			cbi PORTA,CSN
 spi_byte:		ldi r20,7
-			ld r19,Z
+			ld r15,Z
 spi_bit:		in r21,PINA
 			andi r21,(1<<MISO)
 			neg r21
-			rol r19
+			rol r15
 			brcs spi_set
 			cbi PORTA,MOSI
 			rjmp spi_clear
@@ -852,7 +896,7 @@ spi_clear:		sbi PORTA,SCK
 			cbi PORTA,SCK
 			dec r20
 			brpl spi_bit
-			st Z+,r19
+			st Z+,r15
 			dec r16
 			brpl spi_byte
 spi_done:		sbi PORTA,CSN
