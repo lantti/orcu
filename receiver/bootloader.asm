@@ -129,7 +129,7 @@
 .equ RX_ADDR_P5_INIT =  0xC6
 .equ FEATURE_INIT =     0b00000111
 
-
+.equ PING_RESPONSE = 0x7563726F       //"orcu"
 
 .DSEG
 .ORG 0x60
@@ -144,7 +144,7 @@ userspace:      .BYTE 1
 
 .CSEG
                         ;Interrupt vectors
-			rjmp   RESET_H          ; Reset Handler
+			rjmp   0x600            ; Reset Handler
 			rjmp   INT0_H           ; IRQ0 Handler
 			rjmp   PCINT0_H         ; PCINT0 Handler
 			rjmp   PCINT1_H         ; PCINT1 Handler
@@ -163,7 +163,7 @@ userspace:      .BYTE 1
 			rjmp   USI_OVF_H        ; USI Overflow Handler
 
                         ;RF recieve pipe widths
-PW_TABLE:               .DB 16,8,32,0,255
+PW_TABLE:               .DB 0,0,0,0,0
 
                         ;standard function vectors
 SETUP_VECT:             rjmp   SETUP
@@ -195,85 +195,27 @@ USI_STR_H:        ; USI STart Handler
 USI_OVF_H:        ; USI Overflow Handler
 			reti
 
-PIPE1_CB:               sbi PORTA,LEDB1
-                        cbi PORTA,LEDB2
-                        cbi PORTA,LEDG1
-                        cbi PORTA,LEDG2
-                        cbi PORTB,LEDR1
-                        sbi PORTB,LEDR2
-                        ret
-PIPE2_CB:               sbi PORTA,LEDB1
-                        sbi PORTA,LEDB2
-                        sbi PORTA,LEDG1
-                        sbi PORTA,LEDG2
-                        cbi PORTB,LEDR1
-                        cbi PORTB,LEDR2
-                        ret
-PIPE3_CB:               cbi PORTA,LEDB1
-                        cbi PORTA,LEDB2
-                        sbi PORTA,LEDG1
-                        sbi PORTA,LEDG2
-                        sbi PORTB,LEDR1
-                        sbi PORTB,LEDR2
-                        ret
-PIPE4_CB:               sbi PORTA,LEDB1
-                        cbi PORTA,LEDB2
-                        sbi PORTA,LEDG1
-                        cbi PORTA,LEDG2
-                        sbi PORTB,LEDR1
-                        cbi PORTB,LEDR2
-                        ret
-PIPE5_CB:               cbi PORTA,LEDB1
-                        sbi PORTA,LEDB2
-                        cbi PORTA,LEDG1
-                        sbi PORTA,LEDG2
-                        cbi PORTB,LEDR1
-                        sbi PORTB,LEDR2
-                        ret
-SETUP:                  sbi PORTA,LEDB1
-                        sbi PORTA,LEDB2
-                        cbi PORTA,LEDG1
-                        cbi PORTA,LEDG2
-                        cbi PORTB,LEDR1
-                        cbi PORTB,LEDR2
-                        ret
-PING:                   sbi PORTA,LEDB1
-                        sbi PORTA,LEDB2
-                        sbi PORTA,LEDG1
-                        sbi PORTA,LEDG2
-                        sbi PORTB,LEDR1
-                        sbi PORTB,LEDR2
-                        ldi r31,0x00
+PIPE1_CB:               ret
+PIPE2_CB:               ret
+PIPE3_CB:               ret
+PIPE4_CB:               ret
+PIPE5_CB:               ret
+SETUP:                  ret
+PING:                   ldi r31,0x00
                         ldi r30,bufferc-1
-                        ldi r16,0x78
+                        ldi r16,0x18
                         st  Z+,r16
+                        ldi r16,LOW(PING_RESPONSE)
                         st  Z+,r16
+                        ldi r16,HIGH(PING_RESPONSE)
                         st  Z+,r16
-                        ldi r16,0xAA
+                        ldi r16,BYTE3(PING_RESPONSE)
                         st  Z+,r16
-                        st  Z+,r16
-                        st  Z+,r16
-                        ldi r16,0xBB
-                        st  Z+,r16
-                        st  Z+,r16
-                        st  Z+,r16
-                        ldi r16,0xCC
-                        st  Z+,r16
-                        st  Z+,r16
-                        st  Z+,r16
-                        ldi r16,0xDD
-                        st  Z+,r16
-                        st  Z+,r16
-                        st  Z+,r16
+                        ldi r16,BYTE4(PING_RESPONSE)
                         st  Z+,r16
                         ret
-ERROR:                  cbi PORTA,LEDB1
-                        cbi PORTA,LEDB2
-                        cbi PORTA,LEDG1
-                        cbi PORTA,LEDG2
-                        sbi PORTB,LEDR1
-                        sbi PORTB,LEDR2
-                        cli
+
+ERROR:                  cli
                         sleep
                         rjmp ERROR
 
@@ -586,7 +528,7 @@ f_ready_wait:           in  r18,SPMCSR
                         sei
                         rjmp end_handler
 
-;UNTESTESTED!!!
+
 program_eeprom:
                         ld  r18,Z+
                         ld  r19,Z+
@@ -763,6 +705,9 @@ eereadloop:		out EEARL,r16
 			st -Z,r16
 			ldi r16,1
 			rcall spi_op
+
+
+                        //TODO put the following into a loop eventually
 
                         ldi r30,PW_TABLE<<1
                         lpm r16,Z
