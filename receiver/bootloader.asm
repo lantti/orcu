@@ -48,29 +48,29 @@
 
 .INCLUDE "tn44Adef.inc"
 
-.equ LEDB1 = PORTA0
-.equ LEDB2 = PORTA1
-.equ LEDG1 = PORTA2
-.equ LEDG2 = PORTA3
-.equ SCK = PORTA4
-.equ MISO = PORTA5
-.equ MOSI = PORTA6
-.equ CSN = PORTA7
+.equ OUTP1 = PORTA0
+.equ OUTP2 = PORTA1
+.equ OUTP3 = PORTA2
+.equ OUTP4 = PORTA3
+.equ SCK   = PORTA4
+.equ MISO  = PORTA5
+.equ MOSI  = PORTA6
+.equ CSN   = PORTA7
 
-.equ IRQ = PORTB0
-.equ LEDR1 = PORTB1
-.equ LEDR2 = PORTB2
-.equ CE = PORTB3
+.equ IRQ   = PORTB0
+.equ OUTP5 = PORTB1
+.equ OUTP6 = PORTB2
+.equ CE    = PORTB3
 
 .equ IRQ_PCMSKREG = PCMSK1
 .equ IRQ_PCIE = PCIE1
 .equ IRQ_PCINT = PCINT8
 
-.equ PORTA_DDR = (1<<LEDB1)+(1<<LEDB2)+(1<<LEDG1)+(1<<LEDG2)+(1<<SCK)+(0<<MISO)+(1<<MOSI)+(1<<CSN)
-.equ PORTA_UP =  (0<<LEDB1)+(0<<LEDB2)+(0<<LEDG1)+(0<<LEDG2)+(0<<SCK)+(1<<MISO)+(0<<MOSI)+(1<<CSN)
+.equ PORTA_DDR = (1<<OUTP1)+(1<<OUTP2)+(1<<OUTP3)+(1<<OUTP4)+(1<<SCK)+(0<<MISO)+(1<<MOSI)+(1<<CSN)
+.equ PORTA_UP =  (0<<OUTP1)+(0<<OUTP2)+(0<<OUTP3)+(0<<OUTP4)+(0<<SCK)+(1<<MISO)+(0<<MOSI)+(1<<CSN)
 
-.equ PORTB_DDR = (0<<IRQ)+(1<<LEDR1)+(1<<LEDR2)+(1<<CE)
-.equ PORTB_UP =  (1<<IRQ)+(0<<LEDR1)+(0<<LEDR2)+(0<<CE)
+.equ PORTB_DDR = (0<<IRQ)+(1<<OUTP5)+(1<<OUTP6)+(1<<CE)
+.equ PORTB_UP =  (1<<IRQ)+(0<<OUTP5)+(0<<OUTP6)+(0<<CE)
 
 .equ WD_TIMEOUT = 7
 .equ WDP_BITS = (((WD_TIMEOUT & 8) << 2) | (WD_TIMEOUT & 7)) 
@@ -285,7 +285,7 @@ funkcheckloop:		ld r16,Y+
 			dec r23
 			brne funkcheckloop
                         rjmp funkok
-funkfail:               rjmp ERROR
+funkfail:               rcall ERROR_VECT
 funkok:
 
 
@@ -419,7 +419,7 @@ program_eeprom_lj:      rjmp program_eeprom
 init_rf_cmd:            rcall init_rf
                         rjmp end_handler
 
-reply_ping:             rcall PING
+reply_ping:             rcall PING_VECT
                         rjmp end_handler
 
 
@@ -508,14 +508,13 @@ page_program_loop:      ld  r0,Y+
 f_erase_wait:           in  r18,SPMCSR
                         sbrc r18,SPMEN
                         rjmp f_erase_wait
-                        andi r30,0xC0
+                        subi r30,64
                         ldi r18,0x03
                         out SPMCSR,r18
                         spm                        
 f_prog_wait:            in  r18,SPMCSR
                         sbrc r18,SPMEN
                         rjmp f_prog_wait
-                        andi r30,0xC0
                         ldi r18,0x05
                         out SPMCSR,r18
                         spm                        
