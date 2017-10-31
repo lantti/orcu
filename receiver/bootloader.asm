@@ -11,8 +11,8 @@
 /*
   Reg summary
 
-  r0, mainloop
-  r1, mainloop 
+  r0, mainloop, init
+  r1, mainloop, init 
   r2, 
   r3, 
   r4, 
@@ -48,29 +48,29 @@
 
 .INCLUDE "tn44Adef.inc"
 
-.equ OUTP1 = PORTA0
-.equ OUTP2 = PORTA1
-.equ OUTP3 = PORTA2
-.equ OUTP4 = PORTA3
+.equ IOP1 = PORTA0
+.equ IOP2 = PORTA1
+.equ IOP3 = PORTA2
+.equ IOP4 = PORTA3
 .equ SCK   = PORTA4
 .equ MISO  = PORTA5
 .equ MOSI  = PORTA6
 .equ CSN   = PORTA7
 
 .equ IRQ   = PORTB0
-.equ OUTP5 = PORTB1
-.equ OUTP6 = PORTB2
+.equ IOP5 = PORTB1
+.equ IOP6 = PORTB2
 .equ CE    = PORTB3
 
 .equ IRQ_PCMSKREG = PCMSK1
 .equ IRQ_PCIE = PCIE1
 .equ IRQ_PCINT = PCINT8
 
-.equ PORTA_DDR = (1<<OUTP1)+(1<<OUTP2)+(1<<OUTP3)+(1<<OUTP4)+(1<<SCK)+(0<<MISO)+(1<<MOSI)+(1<<CSN)
-.equ PORTA_UP =  (0<<OUTP1)+(0<<OUTP2)+(0<<OUTP3)+(0<<OUTP4)+(0<<SCK)+(1<<MISO)+(0<<MOSI)+(1<<CSN)
+.equ PORTA_DDR = (0<<IOP1)+(0<<IOP2)+(0<<IOP3)+(0<<IOP4)+(1<<SCK)+(0<<MISO)+(1<<MOSI)+(1<<CSN)
+.equ PORTA_UP =  (1<<IOP1)+(1<<IOP2)+(1<<IOP3)+(1<<IOP4)+(0<<SCK)+(1<<MISO)+(0<<MOSI)+(1<<CSN)
 
-.equ PORTB_DDR = (0<<IRQ)+(1<<OUTP5)+(1<<OUTP6)+(1<<CE)
-.equ PORTB_UP =  (1<<IRQ)+(0<<OUTP5)+(0<<OUTP6)+(0<<CE)
+.equ PORTB_DDR = (0<<IRQ)+(0<<IOP5)+(0<<IOP6)+(1<<CE)
+.equ PORTB_UP =  (1<<IRQ)+(1<<IOP5)+(1<<IOP6)+(0<<CE)
 
 .equ WD_TIMEOUT = 7
 .equ WDP_BITS = (((WD_TIMEOUT & 8) << 2) | (WD_TIMEOUT & 7)) 
@@ -118,7 +118,7 @@
 .equ CONFIG_INIT_PON =  0b00001011
 .equ EN_AA_INIT =       0b00111111
 .equ SETUP_AW_INIT =    0b00000001
-.equ SETUP_RETR_INIT =  0b00010011
+.equ SETUP_RETR_INIT =  0b11111111
 .equ RF_SETUP_INIT =    0b00001111
 .equ STATUS_INIT =      0b01110000
 .equ RX_ADDR_P0_INIT =  0xE7           //Additional 2 bytes from eeprom
@@ -129,7 +129,7 @@
 .equ RX_ADDR_P5_INIT =  0xC6
 .equ FEATURE_INIT =     0b00000111
 
-.equ PING_RESPONSE = 0x7563726F       //"orcu"
+.equ PING_RESPONSE = 0x3130756F       //"ou01"
 
 .DSEG
 .ORG 0x60
@@ -200,20 +200,8 @@ PIPE2_CB:               ret
 PIPE3_CB:               ret
 PIPE4_CB:               ret
 PIPE5_CB:               ret
-SETUP:                  ret
-PING:                   ldi r31,0x00
-                        ldi r30,bufferc-1
-                        ldi r16,0x18
-                        st  Z+,r16
-                        ldi r16,LOW(PING_RESPONSE)
-                        st  Z+,r16
-                        ldi r16,HIGH(PING_RESPONSE)
-                        st  Z+,r16
-                        ldi r16,BYTE3(PING_RESPONSE)
-                        st  Z+,r16
-                        ldi r16,BYTE4(PING_RESPONSE)
-                        st  Z+,r16
-                        ret
+SETUP:                  ret                  //receives unit address in r19:r18
+PING:                   ret
 
 ERROR:                  cli
                         sleep
@@ -262,8 +250,6 @@ initeeprom:             sbic EECR, EEPE
 
 			ldi r16, (1<<SE)
 			out MCUCR, r16
-			ldi r16, (1<<PRUSI)+(1<<PRADC)
-			out PRR, r16
 
 			ldi r16, (1<<IRQ_PCIE)
 			out GIMSK, r16
@@ -293,16 +279,16 @@ funkok:
 
                         rcall SETUP_VECT
 
-			sei                   ; Enable interrupts
+			;sei
 
 /*Main loop
   Waits for interrupt, checks if there is a new packet to read,
   if yes, reads the packet, calls an appropriate handler and
   returns to wait
-  Mangels: Z,r16,r18,r19,r20,r21
+  Mangels: Z,r0,r1,r16,r18,r19,r20,r21
 */
-FOREVER:	        sleep
-			sbic PINB,IRQ
+FOREVER:	        wdr
+                        sbic PINB,IRQ
 			rjmp FOREVER
 
 rf_op:                  ldi r31,0x00
@@ -344,7 +330,7 @@ read_packet:            ldi r30, bufferc
 
                         ldi r31,0x00
                         ldi r30,bufferc-1
-                        ldi r16,0xFF
+                        ldi r16,0x07
                         st Z,r16
 
                         cpi r17,0x00
@@ -358,14 +344,13 @@ end_handler:            ldi r31,0x00
                         ldi r30,bufferc-1
                         ld  r16,Z
                         mov r17,r16
+                        andi r17,0x07
+                        cpi r17,0x06
+                        brsh clear_irq
                         lsr r16
                         lsr r16
                         lsr r16
                         inc r16
-                        andi r17,0x07
-
-                        cpi r17,0x06
-                        brsh clear_irq
                         ldi r18,W_ACK_PAYLOAD
                         add r18,r17
                         st Z,r18
@@ -400,9 +385,9 @@ control_handler:
                         cpi r16, 0x01
                         breq load_page
                         cpi r16, 0x02
-                        breq write_buffer
+                        breq write_buffer_lj
                         cpi r16, 0x03
-                        breq program_page
+                        breq program_page_lj
                         cpi r16, 0x04
                         breq program_eeprom_lj
                         cpi r16, 0x05
@@ -414,12 +399,11 @@ control_handler:
                         rjmp clear_irq
 
 
+write_buffer_lj:        rjmp write_buffer
+program_page_lj:        rjmp program_page
 program_eeprom_lj:      rjmp program_eeprom
 
 init_rf_cmd:            rcall init_rf
-                        rjmp end_handler
-
-reply_ping:             rcall PING_VECT
                         rjmp end_handler
 
 
@@ -433,62 +417,118 @@ block:                  nop
                         rjmp block
 
 
+reply_ping:             rcall PING_VECT
+                        ldi r31,0x00
+                        ldi r30,bufferc-1
+                        ld r16,Z+
+                        mov r17,r16
+                        andi r17,0x07
+                        brne add_bootl_ping
+                        lsr r16
+                        lsr r16
+                        lsr r16
+                        add r30,r16
+                        inc r30
+                        cpi r30, bufferc+32-6
+                        brsh end_ping
+add_bootl_ping:         ldi r16,0x00
+                        st Z+,r16
+                        ldi r16,LOW(PING_RESPONSE)
+                        st  Z+,r16
+                        ldi r16,HIGH(PING_RESPONSE)
+                        st  Z+,r16
+                        ldi r16,BYTE3(PING_RESPONSE)
+                        st  Z+,r16
+                        ldi r16,BYTE4(PING_RESPONSE)
+                        st Z+,r16
+                        ldi r16,0x00
+                        st  Z,r16
+                        subi r30,bufferc
+                        mov r16,r30
+                        lsl r16
+                        lsl r16
+                        lsl r16
+                        ldi r30,bufferc-1
+                        st Z,r16
+end_ping:               rjmp end_handler
+
+
+
+
+
+
 load_page:
                         ld  r16,Z
-                        andi r16,0x3F
-                        ldi r31,0x00
-                        mov r30,r16
+                        ldi r17,0x01
+                        cpi r16,64
+                        brsh control_end
+                        clr r1
+                        mov r0,r16
                         ldi r16,6
-l_page_mul:             lsl r30
-                        rol r31
+l_page_mul:             lsl r0
+                        rol r1
                         dec r16
                         brne l_page_mul
                         ldi r16,64
-page_load_loop:         lpm r18, Z
-                        push r31
-                        push r30
+page_load_loop:         movw r31:r30,r1:r0
+                        lpm r18,Z
                         ldi r31,0x00
                         andi r30,0x3F
                         subi r30,-page_buffer
                         st  Z,r18
-                        pop r30
-                        pop r31
-                        inc r30
+                        inc r0
                         dec r16
                         brne page_load_loop
-                        ldi r31,0x00
-                        rjmp end_handler
+                        ldi r17,0x00
+                        rjmp control_end
+
 
 
 write_buffer:
                         ld  r18,Z+
                         ld  r19,Z+
-                        andi r18,0x3F
-                        andi r19,0x0F
-                        subi r18,-page_buffer
-                        add r19,r18
-                        cpi r19,page_buffer+0x40
-                        brcs buffer_write_loop
-                        ldi r19,page_buffer+0x3F
-buffer_write_loop:      ld  r16,Z+
-                        mov r20,r30
-                        mov r30,r18
-                        st  Z+,r16
-                        mov r18,r30
-                        mov r30,r20
-                        cp  r19,r18
-                        brcc buffer_write_loop
+                        ldi r17,0x01
+                        cpi r18,64
+                        brsh control_end
+                        cpi r19,29
+                        brsh control_end
+                        ldi r17,0x02
+                        add r18,r19
+                        cpi r18,64
+                        brsh control_end
+buffer_write_loop:      ldi r30,bufferc+3
+                        add r30,r19
+                        ld  r16,Z
+                        ldi r30,page_buffer
+                        add r30,r18
+                        st  Z,r16
+                        dec r18
+                        dec r19
+                        brpl buffer_write_loop
+                        ldi r17,0x00
+                        rjmp control_end
+
+
+//Sets return value for control commands, expects error code in r17
+//control commands without error code can jump directly to end_handler
+control_end:
+                        ldi r31,0x00
+                        ldi r30,bufferc
+                        ldi r16,0x00
+                        st Z,r17
+                        st -Z,r16
                         rjmp end_handler
 
-
 program_page:
+                        ld  r16,Z
+                        ldi r17,0x01
+                        cpi r16,64
+                        brsh control_end
                         cli
                         push r28
                         push r29
                         ldi r29,0x00
                         ldi r28,page_buffer
-                        ld  r16,Z
-                        andi r16,0x3F
                         ldi r31,0x00
                         mov r30,r16
                         ldi r16,6
@@ -524,13 +564,21 @@ f_ready_wait:           in  r18,SPMCSR
                         ldi r31,0x00
                         pop  r29
                         pop  r28
-                        sei
-                        rjmp end_handler
+                        ;sei
+                        ldi r17,0x00
+                        rjmp control_end
 
 
 program_eeprom:
                         ld  r18,Z+
                         ld  r19,Z+
+                        ldi r17,0x01
+                        cpi r19,29
+                        brsh control_end
+                        ldi r17,0x02
+                        mov r16,r18
+                        add r16,r19
+                        brvs control_end
                         andi r19,0x0F
 eewrite_loop:           sbic EECR, EEPE
                         rjmp eewrite_loop
@@ -544,15 +592,30 @@ eewrite_loop:           sbic EECR, EEPE
                         brpl eewrite_loop
 ee_wait:                sbic EECR, EEPE
                         rjmp ee_wait
-                        rjmp end_handler
+                        ldi r17,0x00
+                        rjmp control_end
 
 
 /*Initialize RF module subroutine
   Requires: None
   Returns: None
-  Mangles: Z, r15, r16, r17, r18, r19, r20, r21*/
+  Mangles: Z, r0, r1, r15, r16, r17, r18, r19, r20, r21*/
+INIT_PLAYLIST:          .DB W_REGISTER+CONFIG,CONFIG_INIT_POFF
+                        .DB FLUSH_TX, 0x00
+                        .DB FLUSH_RX, 0x00
+                        .DB W_REGISTER+EN_AA,EN_AA_INIT
+                        .DB W_REGISTER+SETUP_AW, SETUP_AW_INIT
+                        .DB W_REGISTER+SETUP_RETR, SETUP_RETR_INIT
+                        .DB W_REGISTER+RF_SETUP, RF_SETUP_INIT
+                        .DB W_REGISTER+STATUS, STATUS_INIT
+                        .DB W_REGISTER+RX_ADDR_P2, RX_ADDR_P2_INIT
+                        .DB W_REGISTER+RX_ADDR_P3, RX_ADDR_P3_INIT
+                        .DB W_REGISTER+RX_ADDR_P4, RX_ADDR_P4_INIT
+                        .DB W_REGISTER+RX_ADDR_P5, RX_ADDR_P5_INIT
+                        .DB W_REGISTER+FEATURE, FEATURE_INIT
+                        .DB W_REGISTER+RX_PW_P0, 32
 init_rf:	
-//read rf-parameters stored on the eeprom
+//read rf-parameters stored on the eeprom to stack
 			ldi r16,2
 eereadloop:		out EEARL,r16
 			sbi EECR,EERE
@@ -560,81 +623,26 @@ eereadloop:		out EEARL,r16
 			push r19
 			dec r16
 			brpl eereadloop
-                        pop r17
-                        pop r18
-                        pop r19
-                        push r19
-                        push r18
+
 //Setup RF-module
-                        ldi r31, 0x00
-                        ldi r30, bufferc
-			ldi r16, CONFIG_INIT_POFF	;set rf-module to power-off and RX mode
-			st Z,r16
-			ldi r16, W_REGISTER + CONFIG
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
 
-                        ldi r30, bufferc
-                        ldi r16, FLUSH_TX
-                        st  -Z,r16
-                        ldi r16,0
+                        ldi r19, HIGH(INIT_PLAYLIST<<1)
+                        ldi r18, LOW(INIT_PLAYLIST<<1)
+                        ldi r17,14
+init_plist_loop:        movw r31:r30,r19:r18
+                        lpm r20, Z+
+                        lpm r21, Z+
+                        movw r19:r18,r31:r30
+                        ldi r31,0x00
+                        ldi r30,bufferc
+                        st Z,r21
+                        st -Z,r20
+                        ldi r16,1
                         rcall spi_op
+                        dec r17
+                        brne init_plist_loop
 
-                        ldi r30, bufferc
-                        ldi r16, FLUSH_RX
-                        st  -Z,r16
-                        ldi r16,0
-                        rcall spi_op
-
-                        ldi r30, bufferc
-			ldi r16, STATUS_INIT            //clear IRQs
-			st Z,r16
-			ldi r16, W_REGISTER + STATUS
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,EN_AA_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + EN_AA
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,SETUP_AW_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + SETUP_AW
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,SETUP_RETR_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + SETUP_RETR
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,RF_SETUP_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + RF_SETUP
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,FEATURE_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + FEATURE
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
+                        pop r17
                         ldi r30,bufferc
                         st Z,r17
 			ldi r16,W_REGISTER + RF_CH
@@ -642,6 +650,10 @@ eereadloop:		out EEARL,r16
 			ldi r16,1
 			rcall spi_op
 
+                        pop r18
+                        pop r19
+                        push r19                        ;put the address back for return value
+                        push r18
                         ldi r30,bufferc+2
                         st  Z,r18
                         st  -Z,r19
@@ -662,131 +674,37 @@ eereadloop:		out EEARL,r16
 			ldi r16,3
 			rcall spi_op
 
-			ldi r30,bufferc
-                        ldi r16,RX_ADDR_P2_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + RX_ADDR_P2
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,RX_ADDR_P3_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + RX_ADDR_P3
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,RX_ADDR_P4_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + RX_ADDR_P4
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-			ldi r30,bufferc
-                        ldi r16,RX_ADDR_P5_INIT
-                        st  Z,r16
-			ldi r16,W_REGISTER + RX_ADDR_P5
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
 
                         ldi r17, 0x01          ;enabled pipes (control pipe always enabled)
                         ldi r18, 0x01          ;dynamic payload pipes (control pipe always dynamic)
 
-                        ldi r30, bufferc
-			ldi r16,32		        ;set control pipe width non-zero to activate
-			st Z,r16
-			ldi r16, W_REGISTER + RX_PW_P0
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
 
                         //TODO put the following into a loop eventually
 
-                        ldi r30,PW_TABLE<<1
-                        lpm r16,Z
-                        cpi r16,0
-                        breq pipe1_pw
-                        cpi r16,33
-                        brlo pipe1_en
-                        ori r18,0b00000010              ;dynamic payload
-                        ldi r16,32                      ;set pipe width non-zero to activate
-pipe1_en:               ori r17,0b00000010
-pipe1_pw:               ldi r30,bufferc
-                        st Z,r16
-			ldi r16,W_REGISTER + RX_PW_P1	;set pipe1 width
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
+                        clr r1
+                        ldi r19, 0b00000010
 
-                        ldi r30,(PW_TABLE<<1)+1
+init_pw_loop:           ldi r30,PW_TABLE<<1
+                        add r30,r1
                         lpm r16,Z
                         cpi r16,0
-                        breq pipe2_pw
+                        breq pipe_pw
                         cpi r16,33
-                        brlo pipe2_en
-                        ori r18,0b00000100              ;dynamic payload
+                        brlo pipe_en
+                        or r18,r19                      ;dynamic payload
                         ldi r16,32                      ;set pipe width non-zero to activate
-pipe2_en:               ori r17,0b00000100
-pipe2_pw:               ldi r30,bufferc
+pipe_en:                or r17,r19
+pipe_pw:                ldi r30,bufferc
                         st Z,r16
-			ldi r16,W_REGISTER + RX_PW_P2	;set pipe2 width
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r30,(PW_TABLE<<1)+2
-                        lpm r16,Z
-                        cpi r16,0
-                        breq pipe3_pw
-                        cpi r16,33
-                        brlo pipe3_en
-                        ori r18,0b00001000              ;dynamic payload
-                        ldi r16,32                      ;set pipe width non-zero to activate
-pipe3_en:               ori r17,0b00001000
-pipe3_pw:               ldi r30,bufferc
-                        st Z,r16
-			ldi r16,W_REGISTER + RX_PW_P3	;set pipe3 width
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r30,(PW_TABLE<<1)+3
-                        lpm r16,Z
-                        cpi r16,0
-                        breq pipe4_pw
-                        cpi r16,33
-                        brlo pipe4_en
-                        ori r18,0b00010000              ;dynamic payload
-                        ldi r16,32                      ;set pipe width non-zero to activate
-pipe4_en:               ori r17,0b00010000
-pipe4_pw:               ldi r30,bufferc
-                        st Z,r16
-			ldi r16,W_REGISTER + RX_PW_P4	;set pipe4 width
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
-
-                        ldi r30,(PW_TABLE<<1)+4
-                        lpm r16,Z
-                        cpi r16,0
-                        breq pipe5_pw
-                        cpi r16,33
-                        brlo pipe5_en
-                        ori r18,0b00100000              ;dynamic payload
-                        ldi r16,32                      ;set pipe width non-zero to activate
-pipe5_en:               ori r17,0b00100000
-pipe5_pw:               ldi r30,bufferc
-                        st Z,r16
-			ldi r16,W_REGISTER + RX_PW_P5	;set pipe5 width
-			st -Z,r16
-			ldi r16,1
-			rcall spi_op
+                        ldi r16,W_REGISTER + RX_PW_P1
+                        add r16,r1
+                        st -Z,r16
+                        ldi r16,1
+                        rcall spi_op
+                        inc r1
+                        lsl r19
+                        sbrs r19,6
+                        rjmp init_pw_loop
 
 			ldi r30,bufferc
                         st  Z,r17

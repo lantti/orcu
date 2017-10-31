@@ -52,7 +52,7 @@
 .equ LEDR2 = PORTB2
 
 
-.equ PING_RESPONSE = 0x74736574       //"test"
+.equ PING_RESPONSE = 0x31747374       //"tst1"
 
 .DSEG
 .ORG 0xDE
@@ -153,7 +153,13 @@ PIPE5_CB:               sbi PORTA,LEDB1
                         sbi PORTB,LEDR2
                         ret
 
-SETUP:                  cbi PORTA,LEDB1
+SETUP:                  sbi DDRA,LEDB1
+                        sbi DDRA,LEDB2
+                        sbi DDRA,LEDG1
+                        sbi DDRA,LEDG2
+                        sbi DDRB,LEDR1
+                        sbi DDRB,LEDR2
+                        cbi PORTA,LEDB1
                         cbi PORTA,LEDB2
                         sbi PORTA,LEDG1
                         sbi PORTA,LEDG2
@@ -181,6 +187,13 @@ ERROR:                  cbi PORTA,LEDB1
                         cbi PORTA,LEDG2
                         sbi PORTB,LEDR1
                         sbi PORTB,LEDR2
+                        sbi DDRA,LEDB1
+                        sbi DDRA,LEDB2
+                        sbi DDRA,LEDG1
+                        sbi DDRA,LEDG2
+                        sbi DDRB,LEDR1
+                        sbi DDRB,LEDR2
+
                         cli
                         sleep
                         rjmp ERROR
