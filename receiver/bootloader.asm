@@ -579,7 +579,6 @@ program_eeprom:
                         mov r16,r18
                         add r16,r19
                         brvs control_end
-                        andi r19,0x0F
 eewrite_loop:           sbic EECR, EEPE
                         rjmp eewrite_loop
                         ld  r16,Z+
