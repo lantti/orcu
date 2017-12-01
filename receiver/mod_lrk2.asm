@@ -49,6 +49,8 @@
 .equ LEDR1 = PORTB1
 .equ LEDR2 = PORTB2
 
+.equ ENABLE_RAW = GPIOR00
+
 .equ PRESCALER_MODE = 4
 
 .equ PING_RESPONSE = 0x326B726C       //"lrk2"
@@ -87,7 +89,7 @@ buffer1:        .BYTE 14
 			rjmp   USI_OVF_H        ; USI Overflow Handler
 
                         ;RF recieve pipe widths
-PW_TABLE:               .DB 15,7,2,0,0
+PW_TABLE:               .DB 15,7,2,2,0
 
                         ;standard function vectors
 SETUP_VECT:             rjmp   SETUP
@@ -116,15 +118,17 @@ USI_STR_H:        ; USI STart Handler
 USI_OVF_H:        ; USI Overflow Handler
 			reti
 
-PIPE1_CB:               
+PIPE1_CB:               sbis GPIOR0,ENABLE_RAW
+                        ret
                         ldi r19,0x00
                         ldi r18,msg_buffer+1
-                        rcall load_pwmlist
-                        ldi r16,160               //(20<<3)|0
-                        ldi r31,0x00
-                        ldi r30,msg_buffer
-                        st Z,r16
-                        ret
+                        rjmp load_pwmlist
+//                        rcall load_pwmlist
+//                        ldi r16,160               //(20<<3)|0
+//                        ldi r31,0x00
+//                        ldi r30,msg_buffer
+//                        st Z,r16
+//                        ret
 
 
 
@@ -136,12 +140,13 @@ PIPE2_CB:
                         rcall gen_pwmlist
                         ldi r19,0x00
                         ldi r18,msg_buffer+8
-                        rcall load_pwmlist
-                        ldi r16,160               //(20<<3)|0
-                        ldi r31,0x00
-                        ldi r30,msg_buffer
-                        st Z,r16
-                        ret
+                        rjmp load_pwmlist
+//                        rcall load_pwmlist
+//                        ldi r16,160               //(20<<3)|0
+//                        ldi r31,0x00
+//                        ldi r30,msg_buffer
+//                        st Z,r16
+//                        ret
 
 
 PIPE3_CB:               ldi r31,0x00
@@ -180,13 +185,25 @@ eereadloop:		out EEARL,r16
                         rcall gen_pwmlist
                         ldi r19,0x00
                         ldi r18,msg_buffer+9
-                        rcall load_pwmlist
-                        ldi r16,160               //(20<<3)|0
-                        ldi r31,0x00
+                        rjmp load_pwmlist
+//                        rcall load_pwmlist
+//                        ldi r16,160               //(20<<3)|0
+//                        ldi r31,0x00
+//                        ldi r30,msg_buffer
+//                        st Z,r16
+//                        ret
+
+
+PIPE4_CB:               ldi r31,0x00
                         ldi r30,msg_buffer
-                        st Z,r16
+                        ldd  r16,Z+1
+                        cpi r16,0xBA
+                        breq set_en_raw
+                        cbi GPIOR0,ENABLE_RAW
                         ret
-PIPE4_CB:
+set_en_raw:             sbi GPIOR0,ENABLE_RAW
+                        ret
+
 PIPE5_CB:
                         ret
 
@@ -196,6 +213,8 @@ SETUP:                  ldi r23,LOW(buffer0)
 
                         ldi r16, (1<<PRUSI)+(1<<PRADC)
 			out PRR, r16
+
+                        cbi GPIOR0,ENABLE_RAW
 
                         cbi PORTA,LEDB1
                         cbi PORTA,LEDB2
