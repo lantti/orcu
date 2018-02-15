@@ -44,7 +44,7 @@ class OrcuUI():
     (mainY, mainX) = self.__mainWindow.getmaxyx()
     manualY = (mainY - self.resultY - self.promptY) // 2
     manualX = mainX - self.selectX - 1
-    legendY = mainY - manualY - self.resultY - self.promptY
+    legendY = mainY - manualY - self.resultY - self.promptY - 1
     legendX = manualX
     selectY = mainY - self.resultY - self.promptY - 1
     resultX = mainX
@@ -65,31 +65,28 @@ class OrcuUI():
     self.__drawManual()
     self.__drawLegend()
     self.__drawPrompt()
-    self.__drawSeparators()
     self.__resultWindow.erase()
-    self.__resultWindow.refresh()
-    for row in range(0,256):
-      for column in range(0,256):
-        self.__drawUnit(row,column,False)
-    self.__refreshSelect()
+    self.__resultWindow.noutrefresh()
+    self.__drawSelect()
+    self.__drawSeparators()
 
   def __drawManual(self):
     (maxy,maxx) = self.__manualWindow.getmaxyx()
     self.__manualWindow.erase()
     for y in range(0, min(len(self.__manualLines), maxy)):
       self.__manualWindow.addnstr(y,0,self.__manualLines[y], maxx-1)
-    self.__manualWindow.refresh()
+    self.__manualWindow.noutrefresh()
 
   def __drawLegend(self):
     (maxy,maxx) = self.__legendWindow.getmaxyx()
     self.__legendWindow.erase()
     for y in range(0, min(len(self.__unitMarks), maxy)):
       self.__legendWindow.addnstr(y,0,str(y+1) + '-' + self.__unitMarks[y], maxx-1)
-    self.__legendWindow.refresh()
+    self.__legendWindow.noutrefresh()
 
   def __drawPrompt(self):
     self.__promptWindow.erase()
-    self.__promptWindow.addstr(0,0,'>' + self.__editline)
+    self.__promptWindow.addstr(0,0,'(' + str(self.__sCursorRow) + ',' + str(self.__sCursorColumn) + ')>' + self.__editline)
 
   def __drawUnit(self, row, column, refresh = True):
     status = self.__unitStatus.get((row,column), [False, 0])      
@@ -105,9 +102,6 @@ class OrcuUI():
     if refresh:
       self.__refreshSelect()
 
-  def __refreshSelect(self):
-    self.__selectPad.refresh(self.__selectView * self.linesPerRow, 0, self.__selectTLY, self.__selectTLX, self.__selectBRY, self.__selectBRX)
-
   def __drawSeparators(self):
     (my,mx) = self.__manualWindow.getmaxyx()
     self.__vSepWindow.bkgd(curses.ACS_VLINE)
@@ -115,13 +109,26 @@ class OrcuUI():
     self.__vSepWindow.erase()
     self.__hSepWindow.erase()
     self.__hSepWindow.addch(0, mx, curses.ACS_BTEE)
+    self.__vSepWindow.noutrefresh()
+    self.__hSepWindow.noutrefresh()
+    
+  def __drawSelect(self):
+    self.__selectPad.bkgdset(self.defaultIcon, curses.A_DIM)
+    self.__selectPad.erase()
+    self.__selectPad.bkgdset(' ')
     for r in range(0,256):
       tag = '_______.o(' + str(r) + ')o._______'
-      self.__selectPad.addstr(r*self.linesPerRow, (self.selectX // 2) - (len(tag) // 2), tag)
-    self.__vSepWindow.refresh()
-    self.__hSepWindow.refresh()
+      leadingWs = ' ' * ((self.selectX // 2) - (len(tag) // 2))
+      trailingWs = ' ' * (self.selectX - len(tag) - len(leadingWs))
+      self.__selectPad.addstr(r*self.linesPerRow, 0, leadingWs + tag + trailingWs, curses.A_NORMAL)
+    for ((row,column),_) in self.__unitStatus.items():    
+      self.__drawUnit(row, column, False)
+    self.__drawUnit(self.__sCursorRow, self.__sCursorColumn, False)
     self.__refreshSelect()
-    
+
+  def __refreshSelect(self):
+    self.__selectPad.refresh(self.__selectView * self.linesPerRow, 0, self.__selectTLY, self.__selectTLX, self.__selectBRY, self.__selectBRX)
+
 
   def __editSelection(self, key):
     def cUp():
@@ -168,6 +175,13 @@ class OrcuUI():
         if self.__sCursorRow >= self.__selectView + rowsPerScreen:
           self.__selectView = self.__sCursorRow - rowsPerScreen + 1
 
+    def toggleUnit(row, column):
+      status = self.__unitStatus.get((row,column))
+      if status and status[0]:
+        self.unselectUnit(row, column)
+      else:
+        self.selectUnit(row,column)
+
     oldscRow = self.__sCursorRow
     oldscColumn = self.__sCursorColumn
     if key == 'KEY_DOWN':
@@ -179,16 +193,16 @@ class OrcuUI():
     elif key == 'KEY_RIGHT':
       cRight()
     elif key == 'KEY_SF':
-      self.selectUnit(self.__sCursorRow, self.__sCursorColumn)
+      toggleUnit(self.__sCursorRow, self.__sCursorColumn)
       cDown()
     elif key == 'KEY_SR':
-      self.selectUnit(self.__sCursorRow, self.__sCursorColumn)
+      toggleUnit(self.__sCursorRow, self.__sCursorColumn)
       cUp()
     elif key == 'KEY_SLEFT':
-      self.selectUnit(self.__sCursorRow, self.__sCursorColumn)
+      toggleUnit(self.__sCursorRow, self.__sCursorColumn)
       cLeft()
     elif key == 'KEY_SRIGHT':
-      self.selectUnit(self.__sCursorRow, self.__sCursorColumn)
+      toggleUnit(self.__sCursorRow, self.__sCursorColumn)
       cRight()
     elif key == 'KEY_PPAGE':
       self.__selectView = max(self.__selectView - 1, 0)
@@ -295,107 +309,4 @@ class OrcuUI():
       else:
         pass
     return
-
-
-
-
-with OrcuUI(['q','quit']) as ui:
-  def echoCb(ui, cmdline, selected):
-    ui.writeResult('Echo: ' + cmdline + ' ' + str(selected))
-
-  ui.registerCallback('echo', echoCb)
-  ui.registerCallback('e', echoCb)
-  ui.setManualText(['Orcu Admin', '', 'Commands:', 'q[uit]', 's[earch] <rows>', 'f[lash]'])
-  ui.start()
-
-
-#def main(stdscr):
-#    curses.curs_set(1)
-#    key = ''
-#    c_x = 1
-#    c_y = 1
-#    stdscr.clear()
-#    stdscr.border(0,0,0,0,0,0,0,0)
-#    stdscr.move(1, 1)
-#    while True:
-#      key = stdscr.getkey()
-#      if key == 'KEY_DOWN':
-#        c_y += 1
-#      elif key == 'KEY_UP':
-#        c_y -= 1
-#      elif key == 'KEY_LEFT':
-#        c_x -= 1
-#      elif key == 'KEY_RIGHT':
-#        c_x += 1
-#      elif key == 'KEY_SF':
-#        stdscr.addch(ord('0'))
-#        c_y += 1
-#      elif key == 'KEY_SR':
-#        stdscr.addch(ord('1'))
-#        c_y -= 1
-#      elif key == 'KEY_SLEFT':
-#        stdscr.addch(ord('2'))
-#        c_x -= 1
-#      elif key == 'KEY_SRIGHT':
-#        stdscr.addch(ord('3'))
-#        c_x += 1
-#      elif key == 'n':
-#        n = curses.newwin(0,0,c_y,c_x)
-#        n.border(0,0,0,0,0,0,0,0)
-#        n.refresh()
-#        continue
-#      elif key == 'q':
-#        return
-#      else:
-#        raise ValueError('Wrong key: ' + key)
-#      stdscr.move(c_y, c_x)
-#
-#curses.wrapper(main)
-#import orcumaster
-#import sys
-#from intelhex import IntelHex
-
-#PAGECOUNT = 64
-#PAGESIZE = 64
-#MAXPAYLOAD = 28
-
-#channel = int(sys.argv[1])
-#operation = sys.argv[2]
-
-
-#row = int(sys.argv[1])
-#column = int(sys.argv[2])
-#hexfilename = sys.argv[4]
-
-#def splitSegments(segList):
-#  pageLists = [[0] for _ in range(PAGECOUNT)] 
-#  for s in segList:
-#    sBeg = s[0]
-#    sEnd = s[1]
-#    while (sBeg < sEnd):
-#      page = sBeg // PAGESIZE
-#      pageEnd = (page + 1) * PAGESIZE
-#      plEnd = sBeg + MAXPAYLOAD
-#      newEnd = min(pageEnd, plEnd, sEnd)
-#      pageLists[page][0] += newEnd - sBeg
-#      pageLists[page].append((sBeg,newEnd))
-#      sBeg = newEnd
-#  return pageLists
-
-#def opFlash(row, column, hexfilename)
-#  with orcumaster.orcumaster(channel) as orcu, open(hexfilename, 'r') as hexfile:
-#    ih = IntelHex(hexfile)
-#    pages = splitSegments(ih.segments())
-#    for p in range(PAGECOUNT):
-#      if (pages[p][0] != 0):
-#        if (pages[p][0] != PAGESIZE):
-#          print("loadPage " + str(p))
-#          orcu.ocLoadPage(row, column, p)
-#        for s in pages[p][1:]:
-#          print("writeBuffer " + str((s[0]-p*PAGESIZE, s[0], s[1])))
-#          orcu.ocWriteBuffer(row, column, s[0]-p*PAGESIZE, list(ih[s[0]:s[1]].tobinarray()))
-#        print("programPage " + str(p))
-#        orcu.ocProgramPage(row, column, p)
-#    print("forceReset")
-#    orcu.ocForceReset(row, column)
 

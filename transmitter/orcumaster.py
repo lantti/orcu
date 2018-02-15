@@ -79,7 +79,7 @@ class orcumaster(nrf.nrf24l01p):
     resp = self.ocSend(row, column, 0, [cmdProgramEeprom, offset, len(data)-1] + data)
     if (resp[0] == False):
       return resp
-    time.sleep(1)    
+    time.sleep(1)
     resp = self.ocNop(row, column)
     if (resp[0] == False):
       return resp
