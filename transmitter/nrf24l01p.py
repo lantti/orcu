@@ -147,6 +147,7 @@ bitFeatureEnDynAck = 0
 initFeature =    0b00000000
 
 
+#TODO catch and recast exceptions for non-8bit vals
 class nrf24l01p():
   def __init__(self):
     self.spi = spidev.SpiDev()
@@ -201,7 +202,7 @@ class nrf24l01p():
     return self.spi.xfer(request)[1:]
 
   def __writeReg(self, reg, vals):
-    self.spi.xfer([cmdWRegister|(reg&0x1F)] + vals)
+    self.spi.xfer([cmdWRegister|(reg&0x1F)] + list(bytes(vals)))
     return
 
   def __readPayload(self, len):
@@ -209,7 +210,7 @@ class nrf24l01p():
     return self.spi.xfer(request)[1:]
     
   def __writePayload(self, vals):
-    self.spi.xfer([cmdWTxPayload] + vals)
+    self.spi.xfer([cmdWTxPayload] + list(bytes(vals)))
     return
 
   def __flushTx(self):
@@ -230,11 +231,11 @@ class nrf24l01p():
   def __writeAckPayload(self, pipe, vals):
     if (0 > pipe or pipe > 5):
       raise ValueError("Available pipe numbers are 0-5")
-    self.spi.xfer([cmdWAckPayload|pipe] + vals)
+    self.spi.xfer([cmdWAckPayload|pipe] + list(bytes(vals)))
     return
 
   def __writePayloadNoAck(self, vals):
-    self.spi.xfer([cmdWTxPayloadNoAck] + vals)
+    self.spi.xfer([cmdWTxPayloadNoAck] + list(bytes(vals)))
     return
 
   def __nop(self):

@@ -62,14 +62,17 @@ with orcuui.OrcuUI(['q','quit']) as ui, orcumaster.orcumaster(channel) as orcu:
 
 
   def rowSelectCb(ui, cmdline, selected):
-    row = int(cmdline.split()[1])
-    if cmdline[0] == 's':
-      f = ui.selectUnit
-    else:
-      f = ui.unselectUnit
-    for column in range(0,256):
-      f(row,column)
-    ui.writeResult('')
+    try:
+      row = int(cmdline.split()[1])
+      if cmdline[0] == 's':
+        f = ui.selectUnit
+      else:
+        f = ui.unselectUnit
+      for column in range(0,256):
+        f(row,column)
+      ui.writeResult('')
+    except ValueError:
+      ui.writeResult('Please supply a valid row number')
 
   def flashCb(ui, cmdline, selected):
     pages = splitSegments(ih.segments())
@@ -81,24 +84,52 @@ with orcuui.OrcuUI(['q','quit']) as ui, orcumaster.orcumaster(channel) as orcu:
       ui.unmarkUnit(row, column)
       ui.writeResult('Flashing (' + str(row) + ',' + str(column) + ')')
       for p in range(PAGECOUNT):
-        if (pages[p][0] != 0):
+        if (not fail and pages[p][0] != 0):
           if (pages[p][0] != PAGESIZE):
-            (success, _) = orcu.ocLoadPage(row, column, p)
-            fail = fail or not success
+            (success, errno) = orcu.ocLoadPage(row, column, p)
+            if not success or errno != 0:
+              fail = True
+              break
           for s in pages[p][1:]:
-            (success, _) = orcu.ocWriteBuffer(row, column, s[0]-p*PAGESIZE, list(ih[s[0]:s[1]].tobinarray()))
-            fail = fail or not success
+            (success, errno) = orcu.ocWriteBuffer(row, column, s[0]-p*PAGESIZE, list(ih[s[0]:s[1]].tobinarray()))
+            if not success or errno != 0:
+              fail = True
+              break
           (success, _) = orcu.ocProgramPage(row, column, p)
-          fail = fail or not success
+          if not success or errno != 0:
+            fail = True
+            break
           wrote = True
-      orcu.ocForceReset(row, column)
       if fail:
         if wrote:
           ui.writeResult('Flashing (' + str(row) + ',' + str(column) + ')...Fail! (Bricked)')
         else:
           ui.writeResult('Flashing (' + str(row) + ',' + str(column) + ')...Fail!')
       else:
+        orcu.ocForceReset(row, column)
         ui.writeResult('Flashing (' + str(row) + ',' + str(column) + ')...Ok!')
+
+  def addressCb(ui, cmdline, selected):
+    if len(selected) == 1:
+      oldrow = selected[0][0]
+      oldcolumn = selected[0][1]
+      cmdwords = cmdline.split()
+      try:
+        newrow = int(cmdwords[1])
+        newcolumn = int(cmdwords[2])
+        newchannel = int(cmdwords[3])
+        ui.unmarkUnit(oldrow, oldcolumn)
+        ui.writeResult('Setting address (' + str(newrow) + ',' + str(newcolumn) + ')@' + str(newchannel) + ' for (' + str(oldrow) + ',' + str(oldcolumn) + ')@' + str(channel))
+        (success, errno) = orcu.ocChangeChannelAndAddress(oldrow, oldcolumn, newrow, newcolumn, newchannel)
+        if not success or errno != 0:
+          ui.writeResult('Setting address (' + str(newrow) + ',' + str(newcolumn) + ')@' + str(newchannel) + ' for (' + str(oldrow) + ',' + str(oldcolumn) + ')@' + str(channel) + '...Fail!')
+        else:
+          ui.writeResult('Setting address (' + str(newrow) + ',' + str(newcolumn) + ')@' + str(newchannel) + ' for (' + str(oldrow) + ',' + str(oldcolumn) + ')@' + str(channel) + '...Ok!')
+      except ValueError:
+        ui.writeResult('Please supply valid row, column and channel numbers')
+    else:
+      ui.writeResult('Please select exactly one unit for address change')
+      
 
   ui.registerCallback('echo', echoCb)
   ui.registerCallback('e', echoCb)
@@ -112,7 +143,9 @@ with orcuui.OrcuUI(['q','quit']) as ui, orcumaster.orcumaster(channel) as orcu:
   ui.registerCallback('l', loadCb)
   ui.registerCallback('flash', flashCb)
   ui.registerCallback('f', flashCb)
-  ui.setManualText(['Orcu Admin', '', 'Commands:', 'q[uit]', 's[elect] <row>', 'u[nselect] <row>', 'p[ing]', 'l[oad] <filename>', 'f[lash]'])
+  ui.registerCallback('address', addressCb)
+  ui.registerCallback('a', addressCb)
+  ui.setManualText(manualText)
   ui.start()
 
 print("Bye!")

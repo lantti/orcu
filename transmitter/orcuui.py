@@ -229,6 +229,8 @@ class OrcuUI():
     self.__editline = ''
 
   def __addrToCoords(self, row, column):
+    if row > 255 or column > 255 or row < 0 or column < 0:
+      raise ValueError('Unit Address out of bounds')
     coordY = 1 + row * self.linesPerRow + column // self.selectX
     coordX = column % self.selectX
     return (coordY, coordX)
