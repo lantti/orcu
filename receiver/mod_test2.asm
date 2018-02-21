@@ -51,7 +51,7 @@
 
 .equ PRESCALER_MODE = 3
 
-.equ PING_RESPONSE = 0x326B726C       //"lrk1"
+.equ PING_RESPONSE = 0x32747374       //"tst2"
 
 .DSEG
 .ORG 0xDE

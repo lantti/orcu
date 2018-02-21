@@ -223,6 +223,8 @@ class OrcuUI():
       for (addr,status) in self.__unitStatus.items():
         if status[0]:
           selected.append(addr)
+      if not selected:
+        selected.append((self.__sCursorRow,self.__sCursorColumn))
       self.__commandCallbacks[command](self, self.__editline, selected)
     else:
       self.writeResult('Sorry?')
@@ -297,7 +299,7 @@ class OrcuUI():
         self.__makeLayout()
         self.__drawAll()
         self.__promptWindow.keypad(True)
-      elif key in ['KEY_ENTER','\n']:
+      elif key in ['KEY_ENTER','\n'] and len(self.__editline) > 0:
         command = self.__editline.split()[0]
         if command in self.__quitCommands:
           break

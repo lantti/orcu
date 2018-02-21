@@ -16,6 +16,7 @@ class lrkmaster(orcumaster.orcumaster):
 #  def __enter__(self):
 #    super().__enter__()
 #    return self
+
   def lrkIndexed(self, row, column, colour1, colour2):
     if colour1 > 15 or colour2 > 15 or colour1 < 0 or colour2 < 0:
       raise ValueError('Invalid colour index')
@@ -37,9 +38,22 @@ class lrkmaster(orcumaster.orcumaster):
     else:
       return resp
 
+  def lrkRaw(self, row, column, pwmlist):
+    if (self.nrfGetDynamicPayloadEnable(False) == True):
+      self.nrfSetDynamicPayloadEnable(False)
+    return self.ocSend(row, column, self.rawPipe, pwmlist)
+
+  def lrkEnableRaw(self, row, column):
+    if (self.nrfGetDynamicPayloadEnable(False) == True):
+      self.nrfSetDynamicPayloadEnable(False)
+    return self.ocSend(row, column, self.confPipe, [0xBA])
+
+
+
 manualText = ['Lrk2', '', 'Commands:', 'q[uit]', 's[elect] <row>', 
               'u[nselect] <row>', 'p[ing]', 'i[ndexed] <index> <index>',
-              'g[br] <g> <b> <r> <g> <b> <r>', 'l[oad] <filename> [nocal]', 'pa[lette]']
+              'g[br] <g> <b> <r> <g> <b> <r>', 'l[oad] <filename> [nocal]', 'pa[lette]',
+              'r[aw] <pwmlist as space separated values>', 'enableraw']
 
 channel = int(sys.argv[1])
 palette = []
@@ -147,6 +161,36 @@ with orcuui.OrcuUI(['q','quit']) as ui, lrkmaster(channel) as lrk:
     except (ValueError, IndexError):
       ui.writeResult('Please give six valid component values')
 
+  def rawCb(ui, cmdline, selected):
+    cmdwords = cmdline.split()
+    pwmlist = [0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    try:
+      for i in range(14):
+        pwmlist[i] = int(cmdwords[i+1])
+      for u in selected:
+        row = u[0]
+        column = u[1]
+        ui.writeResult('Setting raw pwm list for ' + str((row,column)))
+        (success,_) = lrk.lrkRaw(row, column, pwmlist)
+        if success:
+          ui.writeResult('Setting raw pwm list for ' + str((row,column)) + '...Ok!')
+        else:
+          ui.writeResult('Setting raw pwm list for ' + str((row,column)) + '...Fail!')
+    except (ValueError, IndexError):
+      ui.writeResult('Please give valid pwm list of 14 values')
+
+  def enablerawCb(ui, cmdline, selected):
+    for u in selected:
+      row = u[0]
+      column = u[1]
+      ui.writeResult('Enabling setting raw pwm list for ' + str((row,column)))
+      (success,_) = lrk.lrkEnableRaw(row, column)
+      if success:
+        ui.writeResult('Enabling setting raw pwm list for ' + str((row,column)) + '...Ok!')
+      else:
+        ui.writeResult('Enabling setting raw pwm list for ' + str((row,column)) + '...Fail!')
+
+
 
   ui.registerCallback('ping', pingCb)
   ui.registerCallback('p', pingCb)
@@ -162,6 +206,9 @@ with orcuui.OrcuUI(['q','quit']) as ui, lrkmaster(channel) as lrk:
   ui.registerCallback('l', loadCb)
   ui.registerCallback('palette', paletteCb)
   ui.registerCallback('pa', paletteCb)
+  ui.registerCallback('raw', rawCb)
+  ui.registerCallback('r', rawCb)
+  ui.registerCallback('enableraw', enablerawCb)
   ui.setManualText(manualText)
   ui.start()
 

@@ -377,7 +377,7 @@ class nrf24l01p():
     self.__registerCache[regConfig] &= emptyBits 
     self.__registerCache[regConfig] |= newBits 
     self.__writeReg(regConfig,[self.__registerCache[regConfig]])
-    self.__registerCache[regConfig] = self.__readReg(regConfig, 1) 
+    self.__registerCache[regConfig] = self.__readReg(regConfig, 1)[0]
     return    
 
   def nrfGetPowerUp(self, fetch = True):

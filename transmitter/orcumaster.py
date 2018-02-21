@@ -32,6 +32,7 @@ class orcumaster(nrf.nrf24l01p):
     self.nrfSetAckPayloadEnable(True)
     self.nrfSetRetryDelay(500)
     self.nrfSetDynamicPayloadPipe(0, True)
+    self.nrfSetCrcMode(True, True)
     self.nrfSetPowerUp(True)
     return self
 
