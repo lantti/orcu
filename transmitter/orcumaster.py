@@ -30,6 +30,7 @@ class orcumaster(nrf.nrf24l01p):
     self.nrfSetRadioChannel(self.channel)
     self.nrfSetDynamicPayloadEnable(True)
     self.nrfSetAckPayloadEnable(True)
+    self.nrfSetMaxRetryCount(15)
     self.nrfSetRetryDelay(500)
     self.nrfSetDynamicPayloadPipe(0, True)
     self.nrfSetCrcMode(True, True)
@@ -53,7 +54,7 @@ class orcumaster(nrf.nrf24l01p):
     if (resp[0] == False):
       return resp
     resp = self.ocNop(row, column)
-    if (resp[0] == False):
+    if (resp[0] == False or len(resp[1]) != 1):
       return resp
     return (True, resp[1][0])
 
@@ -62,7 +63,7 @@ class orcumaster(nrf.nrf24l01p):
     if (resp[0] == False):
       return resp
     resp = self.ocNop(row, column)
-    if (resp[0] == False):
+    if (resp[0] == False or len(resp[1]) != 1):
       return resp
     return (True, resp[1][0])
 
@@ -72,7 +73,7 @@ class orcumaster(nrf.nrf24l01p):
       return resp
     time.sleep(1)
     resp = self.ocNop(row, column)
-    if (resp[0] == False):
+    if (resp[0] == False or len(resp[1]) != 1):
       return resp
     return (True, resp[1][0])
     
@@ -82,7 +83,7 @@ class orcumaster(nrf.nrf24l01p):
       return resp
     time.sleep(1)
     resp = self.ocNop(row, column)
-    if (resp[0] == False):
+    if (resp[0] == False or len(resp[1]) != 1):
       return resp
     return (True, resp[1][0])
 

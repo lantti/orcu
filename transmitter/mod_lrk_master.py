@@ -70,7 +70,11 @@ with orcuui.OrcuUI(['q','quit']) as ui, lrkmaster(channel) as lrk:
       ping = lrk.ocPing(row, column)
       if ping[0]:
         splitPing = ''.join(ping[1]).split('\x00')
-        ui.markUnit(row, column, splitPing[1] + '/' + splitPing[0])
+        if len(splitPing) > 1:
+          mark = splitPing[1] + '/' + splitPing[0]
+        else:
+          mark = 'unknown'
+        ui.markUnit(row, column, mark)
         ui.writeResult('Pinging ' + str((row,column)) + '...Ok!')
       else:
         ui.writeResult('Pinging ' + str((row,column)) + '...Fail!')
