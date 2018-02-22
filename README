@@ -3,10 +3,26 @@ Odyssee Remote Control Unit
 Install bootloader: "avrdude -c arduino -p t44 -b 19200 -P /dev/ttyUSB0 -U flash:w:bootloader.hex -U efuse:w:0xfe:m -U eeprom:w:<channel>,<column>,<row>:m"
 Notice that the address is given in the opposite order than usual
 
-Install a module using gui: python3 orcuadmin.py <channel>
+Install a module using gui: "python3 orcuadmin.py <channel>"
+  Example:
+    "python3 orcuadmin.py 2"
+    "l ../mods/mod_lrk2.hex"
+    "s 0"
+    "p"
+    "u 0"
+    <move cursor over unit to flash>
+    "f"
+    <if fail repeat "f">
 
-LRK2 gui: python3 mod_lrk_master.py <channel>
-
+LRK2 gui: "python3 mod_lrk_master.py <channel>"
+  Example:
+    "python3 mod_lrk_master.py 2"
+    "l optimal_palette.csv"
+    "s 0"
+    "p"
+    "pa"
+    "i 15 10"
+ 
 GUI usage:
   Cursorkeys move cursor, shift-cursorkeys select and unselect. If nothing is selected then the unit under cursor is selected.
   "s <row>" command selects an entire row, "u <row>" unselects. "p" pings selected units.
