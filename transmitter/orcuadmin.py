@@ -7,6 +7,7 @@ import intelhex
 PAGECOUNT = 64
 PAGESIZE = 64
 MAXPAYLOAD = 28
+MAXATTEMPTS = 15
 manualText = ['Orcu Admin', '', 'Commands:', 'q[uit]', 's[elect] <row>', 
               'u[nselect] <row>', 'p[ing]',
               'a[ddress] <row> <column> <channel>',
@@ -88,22 +89,37 @@ with orcuui.OrcuUI(['q','quit']) as ui, orcumaster.orcumaster(channel) as orcu:
       ui.unmarkUnit(row, column)
       ui.writeResult('Flashing (' + str(row) + ',' + str(column) + ')')
       for p in range(PAGECOUNT):
-        if (not fail and pages[p][0] != 0):
-          if (pages[p][0] != PAGESIZE):
+        if pages[p][0] == 0:
+          continue
+        if pages[p][0] != PAGESIZE:
+          success = False
+          attempt = 0
+          while not success and attempt < MAXATTEMPTS:
+            attempt += 1
             (success, errno) = orcu.ocLoadPage(row, column, p)
-            if not success or errno != 0:
-              fail = True
-              break
-          for s in pages[p][1:]:
-            (success, errno) = orcu.ocWriteBuffer(row, column, s[0]-p*PAGESIZE, list(ih[s[0]:s[1]].tobinarray()))
-            if not success or errno != 0:
-              fail = True
-              break
-          (success, _) = orcu.ocProgramPage(row, column, p)
           if not success or errno != 0:
             fail = True
             break
-          wrote = True
+        for s in pages[p][1:]:
+          success = False
+          attempt = 0
+          while not success and attempt < MAXATTEMPTS:
+            attempt += 1
+            (success, errno) = orcu.ocWriteBuffer(row, column, s[0]-p*PAGESIZE, list(ih[s[0]:s[1]].tobinarray()))
+          if not success or errno != 0:
+            fail = True
+            break
+        if fail:
+          break
+        success = False
+        attempt = 0
+        while not success and attempt < MAXATTEMPTS:
+          attempt += 1
+          (success, _) = orcu.ocProgramPage(row, column, p)
+        if not success or errno != 0:
+          fail = True
+          break
+        wrote = True
       if fail:
         if wrote:
           ui.writeResult('Flashing (' + str(row) + ',' + str(column) + ')...Fail! (Bricked)')
@@ -153,12 +169,4 @@ with orcuui.OrcuUI(['q','quit']) as ui, orcumaster.orcumaster(channel) as orcu:
   ui.start()
 
 print("Bye!")
-
-
-
-
-
-#def opFlash(row, column, hexfilename)
-#  with orcumaster.orcumaster(channel) as orcu, open(hexfilename, 'r') as hexfile:
-#    ih = IntelHex(hexfile)
 
