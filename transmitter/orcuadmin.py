@@ -123,6 +123,7 @@ with orcuui.OrcuUI(['q','quit']) as ui, orcumaster.orcumaster(channel) as orcu:
       if fail:
         if wrote:
           ui.writeResult('Flashing (' + str(row) + ',' + str(column) + ')...Fail! (Bricked)')
+          ui.markUnit(row, column, 'bricked')
         else:
           ui.writeResult('Flashing (' + str(row) + ',' + str(column) + ')...Fail!')
       else:
